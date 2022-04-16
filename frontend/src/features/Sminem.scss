@@ -1,0 +1,11 @@
+.Sminem {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: black;
+  height: 100%;
+
+  &__loading {
+    color: white;
+  }
+}
