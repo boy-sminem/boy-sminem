@@ -15,8 +15,12 @@ class Sminem extends React.Component {
     this.startVideo = this.startVideo.bind(this)
     this.updateVideo = this.updateVideo.bind(this)
 
+    this.playing = false
+    this.persons = []
+
     this.state = {
       loading: true,
+      selectedPerson: null
     }
   }
 
@@ -27,14 +31,20 @@ class Sminem extends React.Component {
   }
 
   handlePlaying() {
-    const video = this.canvasRef.current
-    const displaySize = { width: video.width, height: video.height };
-    const canvas = this.canvasRef.current
+    if (this.playing) return
+    this.playing = true
+    const video = this.videoRef.current
+    const displaySize = { width: video.offsetWidth, height: video.offsetHeight };
+    // const canvas = this.canvasRef.current
 
-    canvas.innerHTML = faceapi.createCanvasFromMedia(this.videoRef.current)
+    const canvas = faceapi.createCanvasFromMedia(video)
+    canvas.style = "position: absolute;"
+    let container = document.querySelector(".Sminem__video-container");
+    container.append(canvas);
+
     faceapi.matchDimensions(canvas, displaySize);
 
-    setInterval(this.updateVideo, 1000)
+    setInterval(() => this.updateVideo(canvas, video), 100)
   }
 
   startVideo() {
@@ -43,22 +53,94 @@ class Sminem extends React.Component {
       .catch(err => console.error(err))
   }
 
-  async updateVideo() {
-    const video = this.videoRef.current
-    const canvas = this.canvasRef.current
-    const displaySize = { width: video.width, height: video.height };
+  generateName() {
+    let firstNames = ["Lord", "Boy"]
+    let lastNames = ["Bogdanoff", "Sminem"]
+
+    let firstName = firstNames[Math.floor(Math.random() * firstNames.length)]
+    let lastName = lastNames[Math.floor(Math.random() * lastNames.length)]
+
+    return `${firstName} ${lastName}`
+  }
+
+  async updateVideo(canvas, video) {
+    // const video = this.videoRef.current
+    const displaySize = { width: video.offsetWidth, height: video.offsetHeight }
 
     const detections = await faceapi
-      .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+      .detectAllFaces(video)
       .withFaceLandmarks()
-      .withFaceExpressions()
-      .withAgeAndGender()
-    if (detections === undefined) return;
+      .withFaceDescriptors()
+      //.withFaceLandmarks()
+      //.withFaceExpressions()
+      //.withAgeAndGender()
 
-    const resizedDetections = faceapi.resizeResults(detections, displaySize);
     canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
-    faceapi.draw.drawDetections(canvas, resizedDetections);
+    if (detections.length === 0) return;
+    // if (this.persons.length === 0) {
+    //   this.persons.push({
+    //     name: "sminem",
+    //     descriptor: detections[0].descriptor
+    //   })
+    // }
+    // for (const detection of detections) {
+    //   let person = null
+    //   for (const p of this.persons) {
+    //     const distance = faceMatcher.computeMeanDistance(detection.descriptor, [p.descriptor])
+    //     if (distance < 0.6) {
+    //       person = p
+    //       console.log(`I see person ${p.name}!`)
+    //       break
+    //     }
+    //   }
+    //
+    //   if (person === null) {
+    //     console.log(`I see a new person ${this.persons.length}!`)
+    //     this.persons.push({
+    //       name: this.persons.length,
+    //       descriptor: detection.descriptor,
+    //     })
+    //   }
+    // }
 
+    if (this.persons.length === 0 ) {
+      for (const detection of detections) {
+        this.persons.push({
+          name: this.generateName(),
+          descriptor: detection.descriptor,
+        })
+      }
+    } else {
+      const faceMatcher = new faceapi.FaceMatcher(
+        this.persons.map((e, i) => new faceapi.LabeledFaceDescriptors(i.toString(), [e.descriptor]))
+      )
+
+      for (const detection of detections) {
+        const best = faceMatcher.findBestMatch(detection.descriptor)
+        let id, person
+        if (best.label === "unknown") {
+          id = this.persons.length
+          person = {
+            name: this.generateName(),
+            descriptor: detection.descriptor,
+          }
+          this.persons.push(person)
+        } else {
+          id = parseInt(best.label)
+          person = this.persons[id]
+        }
+
+        const drawBox = new faceapi.draw.DrawBox(detection.detection.box, {
+          label: `${person.name} (${id})`,
+          lineWidth: 2,
+          boxColor: "rgb(68, 238, 170)"
+        })
+
+        drawBox.draw(canvas)
+      }
+    }
+
+    //console.log(detections)
   }
 
   componentDidMount() {
@@ -66,8 +148,11 @@ class Sminem extends React.Component {
       faceapi.nets.tinyFaceDetector.loadFromUri("/models"),
       faceapi.nets.faceLandmark68Net.loadFromUri("/models"),
       faceapi.nets.faceRecognitionNet.loadFromUri("/models"),
-      faceapi.nets.faceExpressionNet.loadFromUri("/models"),
-      faceapi.nets.ageGenderNet.loadFromUri("/models")
+      faceapi.nets.ssdMobilenetv1.loadFromUri("/models"),
+      // faceapi.nets.faceExpressionNet.loadFromUri("/models"),
+      //faceapi.nets.ageGenderNet.loadFromUri("/models")
+
+
     ]).then(() => this.setState({loading: false}, this.startVideo));
   }
 
@@ -76,8 +161,7 @@ class Sminem extends React.Component {
       <div className="Sminem">
         {this.state.loading && <div className="Sminem__loading">Загрузка...</div>}
         {!this.state.loading && <div className="Sminem__video-container">
-            <video id="video" style={{display: "flex", justifyContent: "center", padding: "10px"}} width="500" height="500" autoPlay muted ref={this.videoRef}/>
-            <canvas ref={this.canvasRef} style={{position: "absolute"}}/>
+            <video id="video" style={{display: "flex", justifyContent: "center", padding: "10px"}}  autoPlay muted ref={this.videoRef}/>
           </div>
         }
       </div>
