@@ -9,7 +9,7 @@ def main():
     settings = Settings()
     app = FastAPI()
 
-    app.include_router(router, prefix="/")
+    app.include_router(router)
 
     uvicorn.run(app, host=settings.host, port=settings.port)  # noqa
 
