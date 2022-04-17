@@ -2,7 +2,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: rgb(31, 46, 53);
+  flex-direction: row;
   height: 100%;
 
   &__loading {
@@ -13,5 +13,80 @@
     display: flex;
     justify-content: center;
     align-items: center;
+  }
+
+  &__video {
+    border-radius: 10px;
+  }
+
+  &__content {
+    display: flex;
+    flex-direction: row;
+    gap: 20px;
+  }
+
+  &__description {
+    color: white;
+    background-color: rgb(84,213,90);
+    border-radius: 10px;
+    padding: 15px;
+  }
+
+  &__control-buttons {
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 10px;
+  }
+
+  &__navigator {
+    display: flex;
+    justify-content: space-between;
+    flex-direction: row;
+  }
+
+  &__button {
+    display: flex;
+    text-align: center;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    padding: 5px;
+  }
+
+  &__button:hover {
+    background-color: rgb(68, 238, 170);
+  }
+
+  &__person-data {
+    padding: 5px;
+  }
+
+  @media screen and (max-width: 700px) {
+    &__content {
+      flex-direction: column;
+      justify-content: center;
+      width: 90vw;
+    }
+
+    &__video-container {
+      max-width: 90vw;
+      padding: 20px 10px 10px;
+    }
+
+    &__video {
+      max-width: 90vw;
+    }
+
+    &__description {
+      max-width: 90vw;
+      padding: 10px 10px 32px;
+      margin-left: 0;
+    }
+  }
+}
+
+@media screen and (max-width: 700px) {
+  .Sminem {
+    align-items: start;
   }
 }

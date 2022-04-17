@@ -14,13 +14,14 @@ class Sminem extends React.Component {
     this.initializeVideo = this.initializeVideo.bind(this)
     this.startVideo = this.startVideo.bind(this)
     this.updateVideo = this.updateVideo.bind(this)
+    this.handleCanvasClick = this.handleCanvasClick.bind(this)
 
     this.playing = false
-    this.persons = []
 
     this.state = {
       loading: true,
-      selectedPerson: null
+      selectedPerson: null,
+      persons: []
     }
   }
 
@@ -28,6 +29,24 @@ class Sminem extends React.Component {
     const video = this.videoRef.current
     video.srcObject = stream
     video.addEventListener("playing", this.handlePlaying)
+  }
+
+  handleCanvasClick(canvas, event) {
+    const video = this.videoRef.current
+    const displaySize = { width: video.offsetWidth, height: video.offsetHeight }
+    const videoSize = { width: video.videoWidth, height: video.videoHeight }
+    const x = event.offsetX
+    const y = event.offsetY
+
+    for (let i = 0; i < this.state.persons.length; i++) {
+      let person = this.state.persons[i]
+      if (!person.isActive) continue
+      const scaledBox = this.rescaleBox(person.box, videoSize, displaySize)
+      if (x < scaledBox.x || x > scaledBox.x + scaledBox.width) continue
+      if (y < scaledBox.y || y > scaledBox.y + scaledBox.height) continue
+      this.setState({selectedPerson: i})
+      break
+    }
   }
 
   handlePlaying() {
@@ -39,6 +58,8 @@ class Sminem extends React.Component {
 
     const canvas = faceapi.createCanvasFromMedia(video)
     canvas.style = "position: absolute;"
+    canvas.onclick = event => this.handleCanvasClick(canvas, event)
+
     let container = document.querySelector(".Sminem__video-container");
     container.append(canvas);
 
@@ -54,8 +75,8 @@ class Sminem extends React.Component {
   }
 
   generateName() {
-    let firstNames = ["Lord", "Boy"]
-    let lastNames = ["Bogdanoff", "Sminem"]
+    let firstNames = ["A.", "B.", "C.", "D."]
+    let lastNames = ["E.", "F.", "G.", "H."]
 
     let firstName = firstNames[Math.floor(Math.random() * firstNames.length)]
     let lastName = lastNames[Math.floor(Math.random() * lastNames.length)]
@@ -63,17 +84,37 @@ class Sminem extends React.Component {
     return `${firstName} ${lastName}`
   }
 
+  rescaleBox(box, originalSize, newSize) {
+    let xScalingFactor = newSize.width / originalSize.width
+    let yScalingFactor = newSize.height / originalSize.height
+
+    return new faceapi.Box({
+      x: box.x * xScalingFactor,
+      y: box.y * yScalingFactor,
+      width: box.width * xScalingFactor,
+      height: box.height * yScalingFactor,
+    })
+  }
+
+  getEmotion(expressions) {
+    const maxValue = Math.max(...Object.values(expressions));
+    return Object.keys(expressions).filter(
+      item => expressions[item] === maxValue
+    )[0]
+  }
+
   async updateVideo(canvas, video) {
     // const video = this.videoRef.current
     const displaySize = { width: video.offsetWidth, height: video.offsetHeight }
+    const videoSize = { width: video.videoWidth, height: video.videoHeight }
 
     const detections = await faceapi
       .detectAllFaces(video)
       .withFaceLandmarks()
       .withFaceDescriptors()
       //.withFaceLandmarks()
-      //.withFaceExpressions()
-      //.withAgeAndGender()
+      .withFaceExpressions()
+      .withAgeAndGender()
 
     canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
     if (detections.length === 0) return;
@@ -103,42 +144,73 @@ class Sminem extends React.Component {
     //   }
     // }
 
-    if (this.persons.length === 0 ) {
+    const persons = [...this.state.persons]
+
+    for (const person of persons) {
+      person.isActive = false
+    }
+
+    if (persons.length === 0 ) {
       for (const detection of detections) {
-        this.persons.push({
+        persons.push({
           name: this.generateName(),
           descriptor: detection.descriptor,
+          box: detection.detection.box,
+          isActive: true,
+          features: {
+            age: [detection.age],
+            gender: detection.gender,
+            expressions: detection.expressions
+          }
         })
       }
     } else {
       const faceMatcher = new faceapi.FaceMatcher(
-        this.persons.map((e, i) => new faceapi.LabeledFaceDescriptors(i.toString(), [e.descriptor]))
+        persons.map((e, i) => new faceapi.LabeledFaceDescriptors(i.toString(), [e.descriptor]))
       )
 
       for (const detection of detections) {
         const best = faceMatcher.findBestMatch(detection.descriptor)
         let id, person
         if (best.label === "unknown") {
-          id = this.persons.length
+          id = persons.length
           person = {
             name: this.generateName(),
             descriptor: detection.descriptor,
+            box: detection.detection.box,
+            isActive: true,
+            features: {
+              age: [detection.age],
+              gender: detection.gender,
+              expressions: detection.expressions
+            }
           }
-          this.persons.push(person)
+          persons.push(person)
         } else {
           id = parseInt(best.label)
-          person = this.persons[id]
+          person = persons[id]
+          person.box = detection.detection.box
+          person.isActive = true
+          person.features = {
+            ...person.features,
+            age: [detection.age, ...person.features.age.slice(0, 19)],
+            gender: detection.gender,
+            expressions: detection.expressions
+          }
         }
 
-        const drawBox = new faceapi.draw.DrawBox(detection.detection.box, {
+        const drawBox = new faceapi.draw.DrawBox(
+          this.rescaleBox(detection.detection.box, videoSize, displaySize), {
           label: `${person.name} (${id})`,
           lineWidth: 2,
-          boxColor: "rgb(68, 238, 170)"
+          boxColor: id === this.state.selectedPerson ? "rgb(84,213,90)" : "rgb(68, 238, 170)"
         })
 
         drawBox.draw(canvas)
       }
     }
+
+    this.setState({persons: persons})
 
     //console.log(detections)
   }
@@ -149,20 +221,71 @@ class Sminem extends React.Component {
       faceapi.nets.faceLandmark68Net.loadFromUri("/models"),
       faceapi.nets.faceRecognitionNet.loadFromUri("/models"),
       faceapi.nets.ssdMobilenetv1.loadFromUri("/models"),
-      // faceapi.nets.faceExpressionNet.loadFromUri("/models"),
-      //faceapi.nets.ageGenderNet.loadFromUri("/models")
-
-
+      faceapi.nets.faceExpressionNet.loadFromUri("/models"),
+      faceapi.nets.ageGenderNet.loadFromUri("/models")
     ]).then(() => this.setState({loading: false}, this.startVideo));
   }
 
+  getMeanAge(ages) {
+    return ages.reduce((a, b) => a + b) / ages.length
+  }
+
   render() {
+    let person = null
+    if (this.state.selectedPerson !== null) {
+      person = this.state.persons[this.state.selectedPerson]
+    }
+
     return (
       <div className="Sminem">
         {this.state.loading && <div className="Sminem__loading">Загрузка...</div>}
-        {!this.state.loading && <div className="Sminem__video-container">
-            <video id="video" style={{display: "flex", justifyContent: "center", padding: "10px"}}  autoPlay muted ref={this.videoRef}/>
+        {!this.state.loading && <div className="Sminem__content">
+          <div className="Sminem__video-container">
+            <video id="video" className="Sminem__video" autoPlay muted ref={this.videoRef}/>
           </div>
+          {person !== null && <div className="Sminem__description">
+              <div className="Sminem__control-buttons">
+                <div className="Sminem__navigator">
+                  <div
+                    className="Sminem__button"
+                    onClick={
+                      () => this.setState({
+                       selectedPerson: this.state.selectedPerson === 0 ?
+                        this.state.persons.length - 1 : (this.state.selectedPerson - 1) % this.state.persons.length
+                      })
+                    }
+                  >
+                    Prev.
+                  </div>
+                  <div
+                    className="Sminem__button"
+                    onClick={
+                      () => this.setState({
+                        selectedPerson: (this.state.selectedPerson + 1) % this.state.persons.length
+                      })
+                    }
+                  >
+                    Next
+                  </div>
+                </div>
+              </div>
+              <div className="Sminem__person-data">
+                ID: {this.state.selectedPerson}<br/>
+                Name: {person.name}<br/>
+                Gender: {person.features.gender}<br/>
+                Age: {Math.round(this.getMeanAge(person.features.age))}<br/>
+                Mood: {this.getEmotion(person.features.expressions)}<br/>
+              </div>
+              <div
+                className="Sminem__button"
+                style={{marginTop: 10}}
+                onClick={() => navigator.clipboard.writeText(JSON.stringify(person.features))}
+              >
+                Copy JSON
+              </div>
+            </div>
+          }
+         </div>
         }
       </div>
     )
