@@ -234,7 +234,7 @@ class Sminem extends React.Component {
   }
 
   componentDidMount() {
-    const url = new URL("/api/ws", location.href);
+    const url = new URL("/api/ws", window.location.href);
     url.protocol = 'wss';
     this.socket = new WebSocket(url);
 
