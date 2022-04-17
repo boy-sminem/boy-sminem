@@ -9,7 +9,7 @@ ADD pyproject.toml /usr/src/app/
 RUN poetry config virtualenvs.create false
 RUN poetry install --no-interaction --no-dev
 
-ADD ./app/ml/mobilenetv2_140_best.ckpt /usr/src/app/
+ADD ./app/ml/mobilenetv2_140_best.ckpt /usr/src/app/ml
 ADD . /usr/src/app/
 
 CMD ["python", "-m", "app"]
