@@ -8,6 +8,7 @@ class Sminem extends React.Component {
     super(props)
 
     this.canvasRef = React.createRef()
+    this.cropCanvasRef = React.createRef()
     this.videoRef = React.createRef()
 
     this.handlePlaying = this.handlePlaying.bind(this)
@@ -54,7 +55,6 @@ class Sminem extends React.Component {
     this.playing = true
     const video = this.videoRef.current
     const displaySize = { width: video.offsetWidth, height: video.offsetHeight };
-    // const canvas = this.canvasRef.current
 
     const canvas = faceapi.createCanvasFromMedia(video)
     canvas.style = "position: absolute;"
@@ -84,6 +84,10 @@ class Sminem extends React.Component {
     return `${firstName} ${lastName}`
   }
 
+  dataUrlToBase64(dataUrl) {
+    return dataUrl.split(",", 1)[1]
+  }
+
   rescaleBox(box, originalSize, newSize) {
     let xScalingFactor = newSize.width / originalSize.width
     let yScalingFactor = newSize.height / originalSize.height
@@ -108,6 +112,14 @@ class Sminem extends React.Component {
     const displaySize = { width: video.offsetWidth, height: video.offsetHeight }
     const videoSize = { width: video.videoWidth, height: video.videoHeight }
 
+    const hiddenCanvas = this.canvasRef.current
+    if (hiddenCanvas) {
+      hiddenCanvas.height = videoSize.height
+      hiddenCanvas.width = videoSize.width
+      const hiddenCanvasCtx = hiddenCanvas.getContext("2d")
+      hiddenCanvasCtx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    }
+
     const detections = await faceapi
       .detectAllFaces(video)
       .withFaceLandmarks()
@@ -118,31 +130,6 @@ class Sminem extends React.Component {
 
     canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
     if (detections.length === 0) return;
-    // if (this.persons.length === 0) {
-    //   this.persons.push({
-    //     name: "sminem",
-    //     descriptor: detections[0].descriptor
-    //   })
-    // }
-    // for (const detection of detections) {
-    //   let person = null
-    //   for (const p of this.persons) {
-    //     const distance = faceMatcher.computeMeanDistance(detection.descriptor, [p.descriptor])
-    //     if (distance < 0.6) {
-    //       person = p
-    //       console.log(`I see person ${p.name}!`)
-    //       break
-    //     }
-    //   }
-    //
-    //   if (person === null) {
-    //     console.log(`I see a new person ${this.persons.length}!`)
-    //     this.persons.push({
-    //       name: this.persons.length,
-    //       descriptor: detection.descriptor,
-    //     })
-    //   }
-    // }
 
     const persons = [...this.state.persons]
 
@@ -156,6 +143,7 @@ class Sminem extends React.Component {
           name: this.generateName(),
           descriptor: detection.descriptor,
           box: detection.detection.box,
+          appearances: 1,
           isActive: true,
           features: {
             age: [detection.age],
@@ -191,12 +179,26 @@ class Sminem extends React.Component {
           person = persons[id]
           person.box = detection.detection.box
           person.isActive = true
+          person.appearances = (person.appearances + 1) % 60
           person.features = {
             ...person.features,
             age: [detection.age, ...person.features.age.slice(0, 19)],
             gender: detection.gender,
-            expressions: detection.expressions
+            expressions: detection.expressions,
           }
+        }
+
+        if (person.appearances % 10 === 0) {
+          const cropCanvas = this.cropCanvasRef.current
+          const detectionBox = detection.detection.box
+          cropCanvas.height = detectionBox.height
+          cropCanvas.width = detectionBox.width
+          const cropCanvasCtx = cropCanvas.getContext("2d")
+          cropCanvasCtx.drawImage(
+            hiddenCanvas, detectionBox.x, detectionBox.y, detectionBox.width, detectionBox.height,
+            0, 0, cropCanvas.width, cropCanvas.height
+          );
+          console.log(cropCanvas.toDataURL().split(",", 2)[1])
         }
 
         const drawBox = new faceapi.draw.DrawBox(
@@ -238,6 +240,8 @@ class Sminem extends React.Component {
 
     return (
       <div className="Sminem">
+        <canvas className="Sminem__capture-canvas" ref={this.canvasRef}/>
+        <canvas className="Sminem__crop-canvas" ref={this.cropCanvasRef}/>
         {this.state.loading && <div className="Sminem__loading">Загрузка...</div>}
         {!this.state.loading && <div className="Sminem__content">
           <div className="Sminem__video-container">
