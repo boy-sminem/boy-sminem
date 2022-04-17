@@ -3,8 +3,8 @@ import base64
 from fastapi import APIRouter, WebSocket
 from starlette.concurrency import run_in_threadpool
 
-from backend.app.ml.constant import ATTRIBUTES
-from backend.app.ml.inference import ModelInference
+from .ml.constant import ATTRIBUTES
+from .ml.inference import ModelInference
 
 router = APIRouter()
 
