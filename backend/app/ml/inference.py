@@ -1,3 +1,5 @@
+import io
+
 import timm
 import torch
 import torchvision.transforms as transforms
@@ -30,7 +32,7 @@ class ModelInference():
             ]
         )
 
-        image = Image.fromarray(img)
+        image = Image.open(io.BytesIO(img))
         image = inference_transforms(image).float()
         image_tensor = image.unsqueeze_(0)
         input = image_tensor.to(device)

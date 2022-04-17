@@ -19,7 +19,7 @@ async def websocket_endpoint(websocket: WebSocket):
         try:
             data = await websocket.receive_json()
             response = {"person_id": data["person_id"], "result": []}
-            image = base64.decodebytes(data["img"])
+            image = base64.b64decode(data["img"])
             probs = await run_in_threadpool(model.image_inference, image)
             for k, v in ATTRIBUTES.items():
                 response["result"].append({"attribute_name": v.lower(), "data": probs[k]})
