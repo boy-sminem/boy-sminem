@@ -8,7 +8,7 @@ from .ml.inference import ModelInference
 
 router = APIRouter()
 
-model = ModelInference("./ml/mobilenetv2_140_best.ckpt")
+model = ModelInference(path_to_weights="./ml/mobilenetv2_140_best.ckpt")
 
 
 @router.websocket("/ws")
