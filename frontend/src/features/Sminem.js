@@ -67,7 +67,7 @@ class Sminem extends React.Component {
 
     faceapi.matchDimensions(canvas, displaySize);
 
-    setInterval(() => this.updateVideo(canvas, video), 100)
+    setInterval(() => this.updateVideo(canvas, video), 50)
   }
 
   startVideo() {
