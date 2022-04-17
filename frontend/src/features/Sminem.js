@@ -16,8 +16,10 @@ class Sminem extends React.Component {
     this.startVideo = this.startVideo.bind(this)
     this.updateVideo = this.updateVideo.bind(this)
     this.handleCanvasClick = this.handleCanvasClick.bind(this)
+    this.handleServerMessage = this.handleServerMessage.bind(this)
 
     this.playing = false
+    this.socket = null
 
     this.state = {
       loading: true,
@@ -82,10 +84,6 @@ class Sminem extends React.Component {
     let lastName = lastNames[Math.floor(Math.random() * lastNames.length)]
 
     return `${firstName} ${lastName}`
-  }
-
-  dataUrlToBase64(dataUrl) {
-    return dataUrl.split(",", 1)[1]
   }
 
   rescaleBox(box, originalSize, newSize) {
@@ -198,7 +196,13 @@ class Sminem extends React.Component {
             hiddenCanvas, detectionBox.x, detectionBox.y, detectionBox.width, detectionBox.height,
             0, 0, cropCanvas.width, cropCanvas.height
           );
-          console.log(cropCanvas.toDataURL().split(",", 2)[1])
+          const b64Data = cropCanvas.toDataURL().split(",", 2)[1]
+          if (this.socket.readyState === WebSocket.OPEN) {
+            this.socket.send(JSON.stringify({
+              person_id: id,
+              img: b64Data
+            }))
+          }
         }
 
         const drawBox = new faceapi.draw.DrawBox(
@@ -213,11 +217,25 @@ class Sminem extends React.Component {
     }
 
     this.setState({persons: persons})
+  }
 
-    //console.log(detections)
+  handleServerMessage(event) {
+    const {person_id, result} = JSON.parse(event.data)
+    const persons = [...this.state.persons]
+    if (person_id > persons.length || person_id < 0) {
+      console.log("Bad event", event)
+      return
+    }
+
+    const person = persons[person_id]
+    for (const detection in result) {
+      person.features[detection.attribute_name] = detection.data
+    }
   }
 
   componentDidMount() {
+    this.socket = new WebSocket("ws://javascript.info");
+    this.socket.onmessage = this.handleServerMessage
     Promise.all([
       faceapi.nets.tinyFaceDetector.loadFromUri("/models"),
       faceapi.nets.faceLandmark68Net.loadFromUri("/models"),
