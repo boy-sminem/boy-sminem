@@ -234,7 +234,10 @@ class Sminem extends React.Component {
   }
 
   componentDidMount() {
-    this.socket = new WebSocket("ws://javascript.info");
+    const url = new URL("/api/ws", location.href);
+    url.protocol = 'wss';
+    this.socket = new WebSocket(url);
+
     this.socket.onmessage = this.handleServerMessage
     Promise.all([
       faceapi.nets.tinyFaceDetector.loadFromUri("/models"),
